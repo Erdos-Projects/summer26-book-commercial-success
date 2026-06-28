@@ -3,135 +3,83 @@
 Can we predict whether a novel will become a NYT bestseller from information
 available near its publication date?
 
-This project builds a binary classifier using GoodBooks-10k as the book universe
-and the Post45 NYT Hardcover Fiction Bestsellers list as the ground-truth label.
-Features are restricted to what a publisher or agent would know at release time —
-no post-publication audience signals.
+Binary classification on the GoodBooks-10k universe, labelled against the
+Post45 NYT Hardcover Fiction Bestsellers list. Features are restricted to
+what a publisher would know at release — no post-publication audience signals.
+
+For full pipeline rationale, feature design, and modelling decisions see
+[`methodology/design.md`](methodology/design.md).
 
 ---
 
-## Project status
+## Status
 
 | Stage | Status |
 |-------|--------|
-| Data collection | Done |
-| Data validation & EDA | Done |
+| Data collection & EDA | Done |
 | Fuzzy title-author matching (finalize labels) | **In progress** |
 | Feature engineering | Not started |
-| Baseline model (logistic regression) | Not started |
-| Model comparison (RF, GBM, embeddings) | Not started |
+| Baseline model | Not started |
+| Model comparison | Not started |
 
 ---
 
 ## Data
 
-**Two sources only:**
+**Two main sources:**
+- **GoodBooks-10k Extended** — base book universe (~10,000 books); title, author, genres, page count, pub year, ISBNs, descriptions. Loaded from project GitHub URL.
+- **Post45 NYT Bestsellers (titles file)** — one row per unique bestselling title with `total_weeks`, `best_rank`, `debut_rank`, `year`. Loaded from Post45 Data Collective GitHub.
 
-- **GoodBooks-10k Extended** — base book universe (~10,000 books); provides title,
-  author, genres, page count, publication year, ISBNs, and descriptions.
-  Loaded directly from the project GitHub URL.
-- **Post45 NYT Bestsellers (titles file)** — one row per unique bestselling title
-  with `total_weeks`, `best_rank`, `debut_rank`, and `year` pre-aggregated.
-  Loaded directly from the Post45 Data Collective GitHub.
+**Supplementary sources** (available locally, used for enrichment and secondary targets):
+- Amazon Sales Rank data (ucffool/Kaggle) — rank history per ASIN; used for rank-based features
+- Amazon Popular Books — price, review count, star rating
+- UCSD Book Graph — Goodreads descriptions for 2.36M books; fallback for missing descriptions
+- OpenLibrary API — ISBNs, descriptions, publisher metadata
+- Google Books API — description enrichment fallback (requires `GOOGLE_BOOKS_API_KEY`)
+- Books Into Movies (Kaggle) — screen adaptation matches; secondary target `adapted_to_screen`
 
-Raw data is not committed to this repo. Large files live in
-`/Users/dingshandeng/data_local/data_book/` (local) or `/Volumes/citrine/data_citrine/data_book/`
-(external drive). See `utils/paths.py`.
-
-**Derived output:** `data/merged_books.csv` — GoodBooks rows with NYT labels joined in.
-
----
-
-## Completed work
-
-### Data collection
-Both datasets load cleanly from their public GitHub URLs. No local download needed
-for the primary pipeline.
-
-### Data validation & EDA (`EDA/book_success_merge.ipynb`)
-- GoodBooks cleaned: standardized column names, `pub_year` parsed, leakage-risk
-  columns flagged (`average_rating`, `ratings_count`, etc.), title/author normalized.
-- NYT titles file cleaned: column names standardized, `nyt_bestseller = 1` assigned
-  to every row, outcome columns renamed (`weeks_on_list`, `best_rank_achieved`,
-  `nyt_first_year`, `debut_rank`).
-- Exact ISBN matching implemented: GoodBooks `isbn` → ISBN-10 → ISBN-13 key;
-  NYT `oclc_isbn` extracted and validated. ISBN overlap checked.
-- EDA completed: class balance (~15% positive), publication year distribution,
-  genre analysis, page count by bestseller status, leakage column correlations,
-  description completeness. Figures saved to `EDA/`.
-- Books published before 1931 (before NYT list exists) dropped to avoid
-  mislabelling pre-list books as non-bestsellers.
+Raw data lives outside the repo at `LOCAL_DATA_ROOT` / `EXTERNAL_DATA_ROOT` (see `utils/paths.py`).
+**Derived output:** `data/merged_books.csv` — GoodBooks rows with NYT labels attached.
 
 ---
 
-## Next steps
+## Progress
 
-### 1. Fuzzy title-author matching (finalize labels)
-The exact ISBN pass matches a subset of the NYT list. The fuzzy pass (already
-scaffolded in `EDA/book_success_merge.ipynb`, section 5h–5k) needs to be run,
-reviewed, and accepted before labels are finalized.
+**Done — data collection & EDA** (`EDA/book_success_merge.ipynb`)
+- Both primary datasets load from public GitHub URLs; no local download needed.
+- GoodBooks cleaned: column names normalized, `pub_year` parsed, leakage columns flagged (`average_rating`, `ratings_count`, etc.), title/author keys normalized.
+- NYT titles file cleaned: `nyt_bestseller = 1` for all rows; outcome columns renamed (`weeks_on_list`, `best_rank_achieved`, `nyt_first_year`, `debut_rank`).
+- Exact ISBN pass implemented and run; ISBN keys validated; overlap checked.
+- EDA complete: class balance (~15% positive), year distribution, genre analysis, page count, description completeness. Figures in `EDA/`.
+- Pre-1931 books dropped (NYT list does not exist before 1931).
 
-- Run fuzzy matching with `thefuzz` (70% title / 30% author, threshold 85)
-- Spot-check a random sample of fuzzy matches — look for wrong pairings
-- Adjust threshold if needed (raise for precision, lower for recall)
-- Finalize `data/merged_books.csv` with both exact + fuzzy labels
+**Next — finalize labels** (`EDA/book_success_merge.ipynb`, sections 5h–5k)
 
-### 2. Feature engineering (`notebooks/02_feature_engineering.ipynb`)
-Build the design matrix from `merged_books.csv`. Feature groups:
+The fuzzy matching code is scaffolded but not yet run and accepted. Steps:
+1. Run `thefuzz` pass (70% title / 30% author weight, threshold 85) on unmatched rows
+2. Spot-check a random sample of fuzzy matches for false positives
+3. Adjust threshold if needed; re-run
+4. Save final `data/merged_books.csv` with both exact + fuzzy labels
 
-- Structural: title word count, has subtitle, log page count, publication decade
-- Genre: one-hot top-20 genres, genre count
-- Author history: prior NYT bestseller count before `pub_year` (temporal leak-free)
-- NLP-lite: description word count, VADER sentiment
-- NLP-full (later): sentence-transformer embeddings
-
-### 3. Baseline model (`notebooks/03_baseline_model.ipynb`)
-Logistic regression on structural features with a year-based train/test split.
-Target: F1 ≥ 0.40 on the held-out test years before adding NLP features.
-
-### 4. Model comparison (`notebooks/04_model_comparison.ipynb`)
-Add NLP features progressively; compare against random forest and gradient
-boosting. Evaluate all models on the same year-split test set.
+**Then — modelling** (`notebooks/`)
+1. `01` — audit final label distribution, choose train/test cutoff year
+2. `02` — build design matrix (structural features → NLP-lite → embeddings)
+3. `03` — logistic regression baseline with year-based split (target F1 ≥ 0.40)
+4. `04` — tree-based models and description embeddings; ROC comparison
 
 ---
 
-## Repository layout
+## Layout
 
 ```
-EDA/
-  book_success_merge.ipynb     main data pipeline and EDA
-  other_notebooks/             exploratory / scratch notebooks
-  eda_*.png                    saved EDA figures
-
-notebooks/
-  01_target_definition.ipynb   audit nyt_bestseller label, choose cutoff year
-  02_feature_engineering.ipynb build design matrix
-  03_baseline_model.ipynb      logistic regression baseline
-  04_model_comparison.ipynb    RF, GBM, embeddings vs baseline
-
-features/
-  build_features.py            feature engineering functions (stubs)
-
-models/
-  baseline.py                  year_split, build_baseline_pipeline, fit_baseline
-  evaluate.py                  evaluate_model, compare_models
-
-utils/
-  paths.py                     data root constants, find_data(), derived_path()
-  io.py                        dataset loaders
-  joining.py                   ISBN normalisation, title/author join helpers
-  rank_features.py             Amazon rank history feature extraction
-
-scripts/
-  build_canonical_table.py     (future) post-process merged_books into model input
-  enrich_descriptions.py       (future) staged description enrichment fallback
-  match_adaptations.py         (future) Books Into Movies join for secondary target
-
-data/
-  merged_books.csv             GoodBooks + NYT labels (output of EDA notebook)
-
-methodology/
-  README.md                    design decisions, pipeline rationale, feature plan
+EDA/                         data pipeline notebook + figures
+notebooks/01–04              target audit → features → baseline → comparison
+features/build_features.py   feature engineering stubs
+models/                      baseline pipeline, evaluation utilities
+utils/                       path constants, data loaders, join helpers
+scripts/                     future enrichment and adaptation-matching scripts
+data/merged_books.csv        primary modelling input
+methodology/design.md        design decisions, feature plan, pipeline rationale
 ```
 
 ---
@@ -139,9 +87,5 @@ methodology/
 ## Environment
 
 ```bash
-conda activate erdos_ds_environment
-jupyter lab
+conda activate erdos_ds_environment && jupyter lab
 ```
-
-Key packages: `pandas`, `numpy`, `matplotlib`, `seaborn`, `thefuzz`,
-`scikit-learn`, `vaderSentiment`, `sentence-transformers`.
