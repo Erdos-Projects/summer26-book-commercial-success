@@ -1,0 +1,4 @@
+feature_1,feature_2,correlation,dropped,reason,kept
+genres_missing,,,genres_missing,constant,
+genre_graphic_novels,genre_comics,0.9408097274147829,genre_comics,high correlation,genre_graphic_novels
+max_author_prior_nyt_count,max_author_prior_book_count,0.8456022356069587,max_author_prior_book_count,high correlation,max_author_prior_nyt_count
