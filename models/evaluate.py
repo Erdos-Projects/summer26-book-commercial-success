@@ -1,8 +1,14 @@
 """
 Model evaluation utilities.
 
-Reports precision, recall, F1, ROC-AUC, and confusion matrix.
+Reports precision, recall, F1 (macro), ROC-AUC, and confusion matrix.
 Designed to compare multiple models side-by-side.
+
+F1 (macro) is the sole reported F1 metric. Naive
+baselines (Always-0/Always-1) are still included in every comparison so
+the macro-F1 floor from class imbalance stays visible -- Always-0 alone
+scores macro-F1≈0.45 despite predicting nothing, so real models should be
+judged against that floor, not against 0.
 """
 
 import pandas as pd
@@ -26,8 +32,6 @@ def evaluate_model(
     """
     Compute classification metrics for a fitted model on the test set.
 
-    Reports BOTH f1 (bestseller class only) and f1_macro (secondary, reported for completeness).
-
     Args:
         model: fitted sklearn estimator with predict / predict_proba.
         X_test: feature matrix (test split).
@@ -36,9 +40,8 @@ def evaluate_model(
         save_path: if given, save the confusion matrix figure here.
 
     Returns:
-        Dict with keys: ``model``, ``f1``, ``f1_macro``, ``precision``,
-        ``recall``, ``roc_auc``, ``report`` (full sklearn
-        classification_report str).
+        Dict with keys: ``model``, ``f1_macro``, ``precision``, ``recall``,
+        ``roc_auc``, ``report``.
     """
     y_pred = model.predict(X_test)
     report = classification_report(
@@ -56,14 +59,13 @@ def evaluate_model(
 
     result = {
         "model": model_name,
-        "f1": f1_score(y_test, y_pred),  # bestseller class (pos_label=1 by default)
         "f1_macro": f1_score(y_test, y_pred, average="macro"),
         "precision": precision_score(y_test, y_pred),
         "recall": recall_score(y_test, y_pred),
         "report": report,
     }
 
-    print(f"F1 (bestseller): {result['f1']:.3f}   F1 (macro): {result['f1_macro']:.3f}")
+    print(f"F1 (macro): {result['f1_macro']:.3f}")
 
     if hasattr(model, "predict_proba"):
         y_proba = model.predict_proba(X_test)[:, 1]
@@ -79,7 +81,8 @@ def compare_models(results: list[dict]) -> pd.DataFrame:
     """
     Format a list of evaluate_model dicts into a comparison table.
 
-    Sorted by f1 (bestseller class) descending.
+    Sorted by f1_macro descending -- the project's sole F1 metric per
+    mentor guidance.
 
     Args:
         results: list of dicts returned by evaluate_model.
@@ -88,6 +91,6 @@ def compare_models(results: list[dict]) -> pd.DataFrame:
         DataFrame with one row per model and metric columns.
     """
     df = pd.DataFrame(results)[
-        ["model", "f1", "f1_macro", "precision", "recall", "roc_auc"]
+        ["model", "f1_macro", "precision", "recall", "roc_auc"]
     ]
-    return df.sort_values("f1", ascending=False).reset_index(drop=True)
+    return df.sort_values("f1_macro", ascending=False).reset_index(drop=True)
