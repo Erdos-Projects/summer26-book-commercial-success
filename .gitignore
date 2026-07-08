@@ -123,6 +123,10 @@ models/checkpoints/
 *.pt
 *.pth
 
+# Exception: the committed final-model artifact is tracked intentionally.
+# See scripts/train_final_model.py and models/artifacts/model_card.md.
+!models/artifacts/*.joblib
+
 # Embedding caches and large derived arrays
 *.npy
 *.npz

@@ -1,7 +1,6 @@
 # Methodology
 
-Project: predicting book commercial success (NYT Hardcover Fiction bestseller status)
-from information available near publication time.
+Project: predicting book commercial success from information available near publication time.
 
 ---
 
@@ -19,9 +18,6 @@ ISBNs, and Goodreads popularity metrics.  The Post45 NYT titles file provides on
 row per unique bestselling title with `total_weeks`, `best_rank`, `debut_rank`, and
 `year` pre-aggregated — no need to work with the weekly lists file.
 
-No other datasets (Amazon rank, UCSD, Books Into Movies, etc.) are used in the
-primary pipeline. Those may be revisited for secondary analyses.
-
 ---
 
 ## Merge pipeline
@@ -31,12 +27,12 @@ Implemented in `EDA/book_success_merge.ipynb`, which produces `data/merged_books
 ```
 GoodBooks-10k Extended         Post45 NYT titles file
         │                               │
-   3. Clean                        4. Clean
+   Clean                           Clean
    (col names, pub_year,           (col names, normalize
     title/author norm,              title/author,
     flag leakage cols)              nyt_bestseller = 1)
         │                               │
-        └──────────── 5. Match ─────────┘
+        └────────────── Match ──────────┘
                           │
               Pass 1: Exact ISBN-13 match
                 (GoodBooks isbn→isbn13_key
@@ -58,38 +54,13 @@ The GoodBooks baseline universe (10,000 rows) is kept fixed throughout;
 
 ---
 
-## Target variable
+## Target variable and feature groups
 
 `nyt_bestseller` — binary, 1 if the book appeared on the NYT Hardcover Fiction
 list at any point, 0 otherwise.
 
 **Class balance:** ~15% positive (~1,500 bestsellers out of ~10,000 books).
 
-Useful auxiliary columns for analysis (not for use as model features):
-- `weeks_on_list` — total NYT appearances
-- `best_rank_achieved` — best single-week rank (1 = #1 bestseller)
-- `debut_rank` — rank in the book's first week on the list
-- `nyt_first_year` — year the book first appeared on the list
-- `match_method` — `exact_isbn`, `fuzzy_title_author`, or `unmatched`
-
----
-
-## Leakage-risk columns
-
-The following GoodBooks columns reflect post-publication audience behaviour and
-**must not be used as model features**:
-
-```
-average_rating, ratings_count, work_ratings_count,
-work_text_reviews_count, ratings_1 … ratings_5
-```
-
-They are kept in `merged_books.csv` for reference and EDA but are excluded from
-all feature-engineering steps.
-
----
-
-## Feature groups
 
 | Feature group | Source columns | Leak risk |
 |---------------|---------------|-----------|
@@ -153,3 +124,9 @@ Directly reusable patterns:
 - Debiased description embeddings: `models/debias.py`
 - Year-cohort train/test split: `scripts/train_test_split.py`
 - Topicality scoring against contemporaneous news: `scripts/compute_topicality.py`
+
+---
+
+See [`methodology/results.md`](results.md) for final results, model comparison, and known
+limitations, and [`methodology/future_directions.md`](future_directions.md) for open work and
+unused scaffolding.

@@ -12,6 +12,7 @@ Year column:   'pub_year' (Int64; rows with pub_year < 1931 already dropped)
 """
 
 import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
@@ -88,3 +89,22 @@ def fit_baseline(
     pipeline = build_baseline_pipeline()
     pipeline.fit(X_train, y_train)
     return pipeline
+
+
+def build_final_pipeline() -> Pipeline:
+    """
+    Build the final model pipeline: SimpleImputer(median) -> RandomForestClassifier.
+
+    Canonical definition of the Random Forest configuration selected in
+    notebooks/04_model_comparison.ipynb (F1 macro = 0.756 on the year-based
+    test split). No scaling step -- unnecessary for tree-based models.
+
+    Returns:
+        Unfitted sklearn Pipeline.
+    """
+    return Pipeline([
+        ("impute", SimpleImputer(strategy="median")),
+        ("clf", RandomForestClassifier(
+            n_estimators=300, class_weight="balanced", random_state=42
+        )),
+    ])
